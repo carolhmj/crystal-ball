@@ -1,0 +1,83 @@
+<html>
+    <head>
+        <title>Crystal Ball</title>
+        <link rel='stylesheet' href='styles.css'>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    </head>
+    <body>
+        <script type="module">
+            import * as THREE from "./three.module.js";
+            import {GLTFLoader} from "./GLTFLoader.js";
+            import {TrackballControls} from "./TrackballControls.js";
+
+            let scene, camera, renderer, controls;
+            
+            init();
+            animate();
+
+            function init() {
+                scene = new THREE.Scene();
+                //scene.background = new THREE.Color(0xffffff);
+
+                camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.01, 100);
+                camera.position.set(0, 15, 20);
+                camera.lookAt(0,0,0);
+                renderer = new THREE.WebGLRenderer({antialias: false});
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                
+                const loader = new GLTFLoader();
+
+                const geo = new THREE.BoxBufferGeometry(1,1);
+                const mat = new THREE.MeshNormalMaterial();
+                const test = new THREE.Mesh(geo, mat);
+                //scene.add(test);
+
+                //scene.add(new THREE.AxesHelper());
+
+                loadModels(loader);
+                
+                const light = new THREE.PointLight();
+                light.position.set(0, 10, 0);
+                scene.add(light);
+
+                const light2 = new THREE.PointLight(0xffca2b);
+                light2.position.set(-5, -5, 0);
+                scene.add(light2);
+                
+                const light3 = new THREE.PointLight(0xff3bc1);
+                light2.position.set(5, -5, 0);
+                scene.add(light3);
+
+                document.body.appendChild(renderer.domElement);
+                
+                controls = new TrackballControls(camera, renderer.domElement);
+            }
+            
+            function loadModels(loader) {
+                loader.load(
+                    'crystal_ball/scene.gltf',
+                    (gltf) => {
+                        console.log('gltf', gltf);
+                        scene.add(gltf.scene);
+                        const sceneBox = new THREE.Box3().expandByObject(scene);
+                        console.log('scene min and max', sceneBox.min, sceneBox.max);
+                    },
+                    (xhr) => {
+                        console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );     
+                    },
+                    (error) => {
+                        console.error(error);
+                    }
+                );
+            }
+
+            function animate() {
+                requestAnimationFrame(animate);
+
+                controls.update();
+                renderer.render(scene, camera);
+            }
+
+        </script>
+    </body>
+</html>
