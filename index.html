@@ -32,6 +32,47 @@
             }
         </script>
 
+        <script id='fragment_chunk' type='x-shader/x-fragment'>
+            float N21(vec2 p) {
+                return fract(sin(p.x * 231. + p.y * 25432.) * 7258.);
+            }
+
+            float SmoothNoise(vec2 uv) {
+                vec2 lUv = fract(uv);
+                vec2 id = floor(uv);
+
+                lUv = lUv * lUv * (3.-2.*lUv);
+
+                float bl = N21(id);
+                float br = N21(id+vec2(1,0));
+                float b = mix(bl, br, lUv.x);
+
+                float tl = N21(id+vec2(0,1));
+                float tr = N21(id+vec2(1,1));
+                float t = mix(tl, tr, lUv.x);
+
+                return mix(b, t, lUv.y);
+            }
+
+            float SmoothNoise2(vec2 uv) {
+                float c = SmoothNoise(uv*4.);
+
+                c += SmoothNoise(uv*8.4)*.5;
+                c += SmoothNoise(uv*16.2)*.25;
+                c += SmoothNoise(uv*32.7)*.125;
+                c += SmoothNoise(uv*64.8)*.0625;
+
+                c /= 2.0;
+
+                return c;
+            }
+
+            vec4 getColor(vec2 uv, vec3 outgoingLight) {
+                float n = SmoothNoise2(uv);
+                return vec4(outgoingLight, n);
+            }
+        </script>
+
         <script type="module">
             import * as THREE from "./three.module.js";
             import {GLTFLoader} from "./GLTFLoader.js";
@@ -50,20 +91,11 @@
                 camera.position.set(0, 15, 20);
                 
                 cameraTexture = new THREE.OrthographicCamera(-16, 16, 16, -16, 0.1, 1000);
-                //cameraTexture = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.01, 100);
-                //cameraTexture.position.set(0, 0, 1);
-
+                
                 renderer = new THREE.WebGLRenderer({antialias: false});
                 renderer.setSize(window.innerWidth, window.innerHeight);
-                //renderer.setClearColor(0xff0000);
                 
                 const loader = new GLTFLoader();
-
-                /*const geo = new THREE.BoxBufferGeometry(1,1);
-                const mat = new THREE.MeshNormalMaterial();
-                const test = new THREE.Mesh(geo, mat);
-                sceneTexture.add(new THREE.AxesHelper(5));
-                sceneTexture.add(test);*/
 
                 renderTexture = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {minFilter: THREE.LinearFilter, magFilter: THREE.NearestFilter, format: THREE.RGBFormat});
 
@@ -91,9 +123,12 @@
                 light3.position.set(5, -5, 5);
                 scene.add(light3);
 
-                const light4 = new THREE.PointLight(0xa3f4ff);
+                /*const light4 = new THREE.PointLight(0xa3f4ff);
                 light4.position.set(0, 20, 25);
                 scene.add(light4);*/
+
+                const light5 = new THREE.PointLight();
+                scene.add(light5);
 
                 const ambient = new THREE.AmbientLight(0xffffff);
                 scene.add(ambient);
@@ -102,7 +137,8 @@
             function loadModels(loader) {
                 const ballGeometry = new THREE.SphereBufferGeometry(5, 32, 32);
                 const ballMaterial = new THREE.MeshStandardMaterial({color: 0xffffff, map: renderTexture.texture});
-                const ballMesh = new THREE.Mesh(ballGeometry, ballMaterial);
+                // const ballMesh = new THREE.Mesh(ballGeometry, ballMaterial);
+                const ballMesh = new THREE.Mesh(ballGeometry, shaderMaterial);
                 scene.add(ballMesh);
 
                 const textureQuadGeometry = new THREE.PlaneBufferGeometry(32, 32);
@@ -112,20 +148,37 @@
             }
 
             function createShaderMaterial() {
-                shaderMaterial = new THREE.ShaderMaterial({
+                /*shaderMaterial = new THREE.ShaderMaterial({
                     vertexShader: $("#vertexShader").html(),
                     fragmentShader: $("#fragmentShader").html(),
                     //transparent: true,
                     //lights: true
-                });
+                });*/
+                shaderMaterial = new THREE.MeshLambertMaterial({color: 0xfffdd1, transparent: true});
+                shaderMaterial.onBeforeCompile = (shader) => {
+                    const rndChunk = `
+                    vec3 rnd23(vec2 uv) {
+                        return vec3(1.0 + 0.5*sin(float(uv.x) * float(uv.y) * 3434.212), 1.0 + 0.5*sin((float(uv.x) + 64.243) * (float(uv.y) - 982.1) * 56.8545), 1.0 + 0.5*sin((float(uv.x) - 433.21) * (float(uv.y) + 52.1312) * 667.421));
+                    }\n`;
+
+                    const colorComputation = [
+                        'gl_FragColor = getColor(vUv, outgoingLight);'
+                    ].join('\n');
+
+                    shader.vertexShader = '#define USE_UV\n' + shader.vertexShader;
+                    shader.fragmentShader = '#define USE_UV\n' + rndChunk + $('#fragment_chunk').html() + '\n' + shader.fragmentShader.replace('gl_FragColor = vec4( outgoingLight, diffuseColor.a );', colorComputation);
+
+                    console.log(shader.vertexShader);
+                    console.log(shader.fragmentShader);
+                };
             }
 
             function animate() {
                 requestAnimationFrame(animate);
                 
-                renderer.setRenderTarget(renderTexture);
+                /*renderer.setRenderTarget(renderTexture);
                 renderer.clear();
-                renderer.render(sceneTexture, cameraTexture);
+                renderer.render(sceneTexture, cameraTexture);*/
 
                 renderer.setRenderTarget(null);
                 renderer.clear();
